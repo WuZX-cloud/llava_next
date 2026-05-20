@@ -1,0 +1,4 @@
+
+
+bash train_bash/wait_gpu_and_run_for_cot.sh
+bash train_bash/wait_gpu_and_run_for_cot_3d.sh

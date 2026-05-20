@@ -1,0 +1,70 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Local environments and secrets
+.env
+.env.*
+.venv/
+venv/
+conda/
+
+# Logs and experiment trackers
+*.log
+logs/
+runs/
+wandb/
+
+# Temp files
+/tmp*/
+tmp*/
+
+# Models, checkpoints, and large artifacts
+models/
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.ckpt
+
+# Data and processed data
+processed_ACB/
+processed_data_latest/
+processed_data_with_depth_npy/
+qwen_3d/data/
+qwen_3d/processed_data/
+
+# Training outputs
+output/
+output_3d/
+output_heat_map/
+train_bash/qwen_3d/
+qwen_vl_finetune/output/
+
+# Archives and arrays
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.npy
+*.npz
+
+# Nested external repository; add deliberately later if needed
+/dreamzero/
+
+# Project data snapshots and generated visual examples
+qwen_3d/cot/
+qwen_vl_finetune/data/
+*.png
+*.jpg
+*.jpeg
+
+# Build metadata
+*.egg-info/
+build/
+dist/

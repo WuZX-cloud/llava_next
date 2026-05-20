@@ -1,0 +1,2 @@
+bash qwen_vl_finetune/scripts/train_qwen_vl_only_q_and_a_vision_save.sh [SUCCEED]
+bash qwen_vl_finetune/scripts/train_qwen_vl_for_multi_choice_vision_save.sh [SUCCEED]
