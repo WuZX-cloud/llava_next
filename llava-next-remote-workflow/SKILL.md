@@ -33,6 +33,42 @@ GitHub WuZX-cloud/llava_next main
   -> docker exec qwen2vl_wzx ...
 ```
 
+## Strict Safety Boundaries
+
+Operate only in these approved areas:
+
+```text
+Local editable code area: D:\codex\llava_next
+Remote host project area: /mnt/data2/wuzhengxing/llava_next
+Container project area: /workspace
+Project-owned tmux session: train
+Project-owned logs: /workspace/train.log and /workspace/logs/
+```
+
+On the remote host, allowed actions are limited to:
+
+- Read-only checks such as `pwd`, `ls`, `git status`, `git log`, `git diff`, `du` for project paths, and environment checks.
+- `git pull --ff-only` inside `/mnt/data2/wuzhengxing/llava_next`.
+- `docker exec qwen2vl_wzx bash -lc 'cd /workspace && ...'` for project-scoped diagnostics, tests, training, log reads, and tmux management.
+
+Do not modify anything outside `/mnt/data2/wuzhengxing/llava_next` on the host or outside `/workspace` in the container. Do not edit host files directly except Git metadata created by normal `git pull` inside the project. Put source-code changes through the local repo, commit, push, and remote pull workflow.
+
+Forbidden unless the user explicitly requests it in the current turn:
+
+- Rebooting or shutting down the server.
+- Starting, stopping, restarting, removing, or recreating system services, Docker daemon, containers other than the project-owned tmux session, or unrelated jobs.
+- Using `sudo`, changing users, changing SSH config, changing firewall/network/storage/system package settings, or modifying global Git config.
+- Running `rm`, `mv`, `chmod`, `chown`, `git reset --hard`, `git clean`, `docker stop`, `docker restart`, `docker rm`, `kill`, or `pkill` unless the target is proven to be inside the approved project scope and the user has approved destructive intent.
+- Deleting models, datasets, checkpoints, outputs, processed data, or logs as a cleanup shortcut.
+
+Before any host-side write, pull, or long run, perform a safety preflight:
+
+```powershell
+ssh myserver "cd /mnt/data2/wuzhengxing/llava_next && pwd && git status --short && git rev-parse --abbrev-ref HEAD && git log --oneline -1"
+```
+
+Proceed only if `pwd` is `/mnt/data2/wuzhengxing/llava_next`, the branch is `main`, and remote changes are understood. If the remote worktree contains unexpected modifications, stop and report them.
+
 ## Local Code Improvement
 
 Start every code task in the local clone:
@@ -111,6 +147,8 @@ Run short diagnostics directly:
 ssh myserver "cd /mnt/data2/wuzhengxing/llava_next && git pull --ff-only && docker exec qwen2vl_wzx bash -lc 'cd /workspace && <command> 2>&1'"
 ```
 
+Only use commands that operate on the project and do not change host-level configuration or services.
+
 Examples:
 
 ```powershell
@@ -173,6 +211,8 @@ Stop training:
 ssh myserver "docker exec qwen2vl_wzx bash -lc 'tmux kill-session -t train'"
 ```
 
+Only stop the `train` tmux session when it is the project run for the current task or when the user explicitly asked to stop it. Do not stop other tmux sessions, processes, containers, or services.
+
 ## Debugging Loop
 
 When a remote run fails:
@@ -200,6 +240,8 @@ This project intentionally tracks source code, scripts, Docker/requirements file
 
 Do not add ignored data or checkpoint artifacts to Git unless the user explicitly requests a small fixture or config sample.
 
+Never use cleanup commands to force Git or training to proceed. If ignored artifacts, checkpoints, or logs interfere with a task, report the path and ask before deleting, moving, or changing permissions.
+
 ## Reporting
 
 After completing a code-and-remote-validation cycle, report:
@@ -209,3 +251,4 @@ After completing a code-and-remote-validation cycle, report:
 - Remote command run.
 - Relevant stdout, traceback, or log tail.
 - Whether remote Git state is clean.
+- Any safety-sensitive decision that was skipped, blocked, or required user approval.
