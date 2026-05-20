@@ -1,0 +1,4 @@
+interface:
+  display_name: "LLaVA Next Remote Workflow"
+  short_description: "Project remote training workflow"
+  default_prompt: "Use the llava_next project Git, SSH, Docker, and tmux workflow."
