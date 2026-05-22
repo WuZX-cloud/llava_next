@@ -27,4 +27,5 @@ CUDA_VISIBLE_DEVICES=${GPU} python vis_spatial_heatmap.py \
     --norm_type no_norm \
     --grid_n 7 \
     --num_3d_freqs 4 \
+    --gate_mode ${4:-softplus_mean} \
     --record True

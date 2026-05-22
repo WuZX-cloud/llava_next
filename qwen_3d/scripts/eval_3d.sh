@@ -17,6 +17,7 @@ grid_n=7
 merge_type=text_guide
 is_w2c=False
 type_3d=sincos # or nf
+gate_mode=softplus_mean  # softplus_mean sigmoid_max raw_sigmoid
 # test_json=processed_data_latest/test/test_data_multi_view_follow.json
 # test_json=processed_data_latest/test/sim5_sim6_merged_test_data_multi_view_follow.json
 test_json=processed_data_with_depth_npy/test/sim5_sim6_merged_test_data_multi_view_follow.json
@@ -33,7 +34,7 @@ output_d=""
 # bash qwen_3d/scripts/eval_3d.sh -l merger_save_all_lora-new_label_after_sim5-6_no_norm_w2c_nf_concat_text -n no_norm -m concat_text -w True -d nf
 
 
-while getopts "t:l:n:m:w:d:f:e:g:r:o:" opt; do
+while getopts "t:l:n:m:w:d:f:e:g:r:o:G:" opt; do
   case $opt in
     t) test_json="$OPTARG" ;;
     l) lora_type="$OPTARG" ;;
@@ -46,9 +47,10 @@ while getopts "t:l:n:m:w:d:f:e:g:r:o:" opt; do
     g) gpu="$OPTARG" ;;
     r) record="$OPTARG" ;;
     o) output_d="$OPTARG" ;;
+    G) gate_mode="$OPTARG" ;;
     *)
       echo "用法:"
-      echo "bash train_qwen_vl.sh -l lora_type -n norm_type  -m merge_type -w is_w2c -d type_3d -f num_3d_freqs -e enable_3d"
+      echo "bash eval_3d.sh -l lora_type -n norm_type -m merge_type -w is_w2c -d type_3d -f num_3d_freqs -e enable_3d -G gate_mode"
       exit 1
       ;;
   esac
@@ -84,7 +86,8 @@ CUDA_VISIBLE_DEVICES=${gpu} python qwen_3d/eval/eval_3d.py \
     --is_w2c ${is_w2c}  \
     --type_3d ${type_3d} \
     --num_3d_freqs ${num_3d_freqs}  \
-    --record ${record}
+    --record ${record} \
+    --gate_mode ${gate_mode}
     # --limit 1  # 先测试10个样本
 
 

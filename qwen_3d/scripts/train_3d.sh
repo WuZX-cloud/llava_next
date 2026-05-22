@@ -11,6 +11,7 @@ merge_type=direct_add   # direct_add vision_guide text_guide deep_text_guide con
 is_w2c=True
 type_3d=nf  # sincos or nf
 enable_3d=True
+gate_mode=softplus_mean  # softplus_mean sigmoid_max raw_sigmoid
 
 train_data=./processed_data_with_depth_npy/train/train_data_multi_view_follow.json
 # train_data=./processed_data_latest/train/train_data_multi_view_follow.json
@@ -24,7 +25,7 @@ eval=False
 port=29501
 
 
-while getopts "l:t:n:g:m:w:d:f:e:c:a:p:s:" opt; do
+while getopts "l:t:n:g:m:w:d:f:e:c:a:p:s:G:" opt; do
   case $opt in
     l) lora_type="$OPTARG" ;;
     t) type_name="$OPTARG" ;;
@@ -39,9 +40,10 @@ while getopts "l:t:n:g:m:w:d:f:e:c:a:p:s:" opt; do
     a) eval="$OPTARG" ;;
     p) port="$OPTARG" ;;
     s) lambda_sparse="$OPTARG" ;;
+    G) gate_mode="$OPTARG" ;;
     *)
       echo "用法:"
-      echo "bash train_3d.sh -l lora_type -t type_name -n norm_type -g grid_n -m merge_type -w is_w2c -d type_3d -f num_3d_freqs -e enable_3d"
+      echo "bash train_3d.sh -l lora_type -t type_name -n norm_type -g grid_n -m merge_type -w is_w2c -d type_3d -f num_3d_freqs -e enable_3d -G gate_mode"
       exit 1
       ;;
   esac
@@ -80,7 +82,8 @@ CUDA_VISIBLE_DEVICES="${cuda_devices}" deepspeed --master_port=${port} qwen_3d/t
       --type_3d ${type_3d} \
       --num_3d_freqs ${num_3d_freqs}  \
       --eval ${eval}  \
-      --lambda_sparse ${lambda_sparse}
+      --lambda_sparse ${lambda_sparse} \
+      --gate_mode ${gate_mode}
 
 
 # if [ "$enable_text_guide" == "True" ]; then

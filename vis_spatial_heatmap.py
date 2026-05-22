@@ -350,6 +350,9 @@ if __name__ == "__main__":
     parser.add_argument("--grid_n", type=int, default=7)
     parser.add_argument("--num_3d_freqs", type=int, default=4)
     parser.add_argument("--fixed_image_size", type=int, nargs=2, default=[224, 224])
+    parser.add_argument("--gate_mode", type=str, default="softplus_mean",
+                       choices=["softplus_mean", "sigmoid_max", "raw_sigmoid"],
+                       help="Gate computation mode")
     parser.add_argument("--record", type=str, default="True")
 
     args = parser.parse_args()

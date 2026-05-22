@@ -43,6 +43,7 @@ class Qwen2_5_VLWith3D(Qwen2_5_VLForConditionalGeneration):
         self.merge_type = args.merge_type
 
         if self.enable_3d:
+            gate_mode = getattr(args, 'gate_mode', 'softplus_mean')
             position_3d_encoder = ThreeDPositionEncoding(
                 hidden_size=config.vision_config.hidden_size,
                 text_dim=config.hidden_size,
@@ -51,7 +52,8 @@ class Qwen2_5_VLWith3D(Qwen2_5_VLForConditionalGeneration):
                 type=args.norm_type,
                 merge_type=self.merge_type,
                 grid_n=args.grid_n,
-                type_3d=args.type_3d
+                type_3d=args.type_3d,
+                gate_mode=gate_mode
             )
             # 【关键一步】把 context 挂载给 encoder 实例！
             # 这样 encoder 内部就能访问 context 了

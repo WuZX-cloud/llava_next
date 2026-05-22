@@ -1244,16 +1244,17 @@ class RawScoreCrossAttention(nn.Module):
 
 
 class TextGuidedCrossAttentionGate(nn.Module):
-    def __init__(self, vision_dim, text_dim, num_heads=8):
+    def __init__(self, vision_dim, text_dim, num_heads=8, gate_mode="softplus_mean"):
         super().__init__()
 
+        self.gate_mode = gate_mode
         attn_dim = 768
-        
+
         # 1. 文本映射层：将文本维度映射到视觉维度，以便进行 Attention
         self.text_proj = nn.Linear(text_dim, attn_dim)
 
         self.vis_proj = nn.Linear(vision_dim, attn_dim)
-        
+
         # 2. 【关键新增】Pre-Norm 层，强制拉齐分布
         self.ln_v = nn.LayerNorm(vision_dim) # 给 vision_tokens 用
         self.ln_t = nn.LayerNorm(text_dim)   # 给 text_features 用
@@ -1262,11 +1263,17 @@ class TextGuidedCrossAttentionGate(nn.Module):
         # Query = Vision (图像想找什么?)
         # Key/Value = Text (文本提供了什么线索?)
         self.cross_attn = nn.MultiheadAttention(
-            embed_dim=attn_dim, 
-            num_heads=num_heads, 
+            embed_dim=attn_dim,
+            num_heads=num_heads,
             batch_first=True,
             dropout=0.1
         )
+
+        # gate_mode: sigmoid_max 和 raw_sigmoid 需要额外的可学习参数
+        if gate_mode in ("sigmoid_max", "raw_sigmoid"):
+            self.gate_linear = nn.Linear(1, 1)
+            nn.init.constant_(self.gate_linear.bias, -3.0)
+            nn.init.ones_(self.gate_linear.weight)
         
         # 3. 门控生成层 (MLP)
         # 输入是 Attention 的输出 (即图像从文本中“检索”到的相关信息)
@@ -1314,43 +1321,29 @@ class TextGuidedCrossAttentionGate(nn.Module):
         #     key_padding_mask=text_mask # 如果有 mask 最好传进来
         # )
         ################# method 5 ######################
-        attn_output, attn_weights = self.cross_attn(
-            query=text,
-            key=vis,
-            value=vis,
-            key_padding_mask=None # 如果有 mask 最好传进来
-        )
-        # 1. 在 L (Text) 维度求和，得到每个视觉 Token 的总关注度
-        # 形状变为: [B, V]
-        # 物理含义：这段文本整体上对这一个视觉 Patch 关注了多少
-        # attn_sum = attn_weights.sum(dim=1) 
+        if self.gate_mode == "raw_sigmoid":
+            # 方案 B：不用 nn.MultiheadAttention 的 softmax，直接算 raw scores
+            import math
+            raw_scores = torch.bmm(text, vis.transpose(1, 2)) / math.sqrt(vis.shape[-1])  # [B, S, N_vis]
+            max_relevance, _ = raw_scores.max(dim=1)  # [B, N_vis]
+            gate = torch.sigmoid(self.gate_linear(max_relevance.unsqueeze(-1)))  # [B, N_vis, 1]
+            attn_weights = F.softmax(raw_scores, dim=-1)  # for visualization only
+        else:
+            attn_output, attn_weights = self.cross_attn(
+                query=text,
+                key=vis,
+                value=vis,
+                key_padding_mask=None
+            )
 
-        # # 2. 生成 Gate
-        # # attn_sum: [B, V]
-        # min_val = attn_sum.min(dim=1, keepdim=True)[0]
-        # max_val = attn_sum.max(dim=1, keepdim=True)[0]
-
-        # # 防止除以零的极小值 epsilon
-        # epsilon = 1e-6 
-
-        # # 归一化到 [0, 1]
-        # normed_sum = (attn_sum - min_val) / (max_val - min_val + epsilon)
-
-        # # 此时已经是 0~1 了，可以直接用，或者再过一次 Sigmoid 增加非线性（可选）
-        # gate = normed_sum.unsqueeze(-1)
-
-        # 1. 求和: [B, L, V] -> [B, V]
-        # attn_sum = attn_weights.sum(dim=1)
-        attn_sum = attn_weights.mean(dim=1)
-        # print(f"attn_sum is : {attn_sum}")
-        
-        # 2. 增加最后一维以输入 Linear 层: [B, V] -> [B, V, 1]
-        attn_sum_feat = attn_sum.unsqueeze(-1)
-        
-        # 3. 线性映射 + Sigmoid
-        # Linear 会自动学习 bias 把正数拉回来，也会学习 weight 控制斜率
-        # gate = torch.sigmoid(attn_sum_feat)
-        gate = F.softplus(attn_sum_feat)
+            if self.gate_mode == "sigmoid_max":
+                # 方案 A：取 max 保留峰值 + learned sigmoid
+                attn_max, _ = attn_weights.max(dim=1)  # [B, N_vis]
+                gate = torch.sigmoid(self.gate_linear(attn_max.unsqueeze(-1)))  # [B, N_vis, 1]
+            else:
+                # 旧方案：softplus_mean（默认）
+                attn_sum = attn_weights.mean(dim=1)  # [B, N_vis]
+                gate = F.softplus(attn_sum.unsqueeze(-1))  # [B, N_vis, 1]
 
         ################# method 5 ######################
 
@@ -1511,14 +1504,15 @@ class ThreeDPositionEncoding(nn.Module):
     def __init__(
         self,
         hidden_size: int = 3584,
-        text_dim: int = 3584,  
+        text_dim: int = 3584,
         num_3d_freqs: int = 10,
         dropout: float = 0.05,
         type : str = "norm",
         merge_type : str = "None",
         grid_n: int = 3,
         type_3d: str = "sincos",
-        record: bool = False
+        record: bool = False,
+        gate_mode: str = "softplus_mean"
     ):
         super().__init__()
 
@@ -1532,6 +1526,7 @@ class ThreeDPositionEncoding(nn.Module):
         self.type_3d = type_3d
 
         self.record = record
+        self.gate_mode = gate_mode
         
         # 3D坐标编码维度
         self.coord_encoding_dim = 3 * 2 * num_3d_freqs
@@ -1741,18 +1736,22 @@ class ThreeDPositionEncoding(nn.Module):
         vision_dim = self.hidden_size
         num_3d_freqs = self.num_3d_freqs
         text_dim = self.text_dim
-        
+
         # === 修改处：使用基于相似度的门控模块 ===
-        self.text_cross_gating_module = TextGuidedCrossAttentionGate(vision_dim, text_dim)
+        self.text_cross_gating_module = TextGuidedCrossAttentionGate(
+            vision_dim, text_dim, gate_mode=self.gate_mode
+        )
 
 
     def text_cross_scale_init(self):
         vision_dim = self.hidden_size
         num_3d_freqs = self.num_3d_freqs
         text_dim = self.text_dim
-        
+
         # === 修改处：使用基于相似度的门控模块 ===
-        self.text_scale_gating_module = TextGuidedCrossAttentionGate(vision_dim, text_dim)
+        self.text_scale_gating_module = TextGuidedCrossAttentionGate(
+            vision_dim, text_dim, gate_mode=self.gate_mode
+        )
 
         self.pos_scale = nn.Parameter(torch.ones(1) * 10.0) # 初始值设大一点，比如10
 

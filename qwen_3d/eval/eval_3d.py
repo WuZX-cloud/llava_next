@@ -962,6 +962,9 @@ def main():
     # parser.add_argument("--enable_text_guide", action="store_true", help="启用文本指导3D位置编码")
     parser.add_argument("--merge_type", type=str, default="direct_add",
                        help="3d embedding 的融合方式")
+    parser.add_argument("--gate_mode", type=str, default="softplus_mean",
+                       choices=["softplus_mean", "sigmoid_max", "raw_sigmoid"],
+                       help="Gate 计算模式: softplus_mean(旧), sigmoid_max(推荐新), raw_sigmoid(无softmax)")
     parser.add_argument("--is_w2c", type=str, default="False",
                        help="外参是否是w2c矩阵")
     parser.add_argument("--type_3d", type=str, default="sincos",
