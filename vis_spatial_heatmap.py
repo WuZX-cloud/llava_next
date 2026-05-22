@@ -133,6 +133,7 @@ def run_visualization(args):
     )
     model.load_state_dict(base_model.state_dict(), strict=False)
     del base_model
+    torch.cuda.empty_cache()
 
     model = PeftModel.from_pretrained(model, args.model_path)
 
@@ -141,7 +142,21 @@ def run_visualization(args):
         model.visual.dtype = torch.bfloat16
 
     model.eval()
-    model.to(args.device)
+
+    # Use device_map auto if single GPU doesn't have enough memory
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
+    free_mem = torch.cuda.mem_get_info(0)[0] / 1024**3
+    print(f"  Free GPU memory: {free_mem:.1f} GB")
+    if free_mem < 16:
+        print("  Not enough single-GPU memory, loading with device_map='auto'")
+        from accelerate import dispatch_model, infer_auto_device_map
+        device_map = infer_auto_device_map(model, max_memory={i: "15GiB" for i in range(torch.cuda.device_count())})
+        model = dispatch_model(model, device_map=device_map)
+        args.device = "cuda:0"
+    else:
+        model.to(args.device)
     print("Model loaded.\n")
 
     # 3D coord generator
