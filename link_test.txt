@@ -1,0 +1,2 @@
+Link test: local edit -> git push -> remote pull -> container verify
+Timestamp: 2026-05-22
