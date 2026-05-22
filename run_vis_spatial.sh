@@ -8,14 +8,16 @@ export PYTHONPATH=$(pwd)
 MODEL_PATH=output_3d/merger_save_all_lora-gradient_1_gpu_4-v4-text_cross_attention-question_embedding-0-method5-3
 
 GPU=${1:-7}
+TEST_JSON=${2:-processed_data_with_depth_npy/test/test_data_multi_view_follow.json}
+OUTPUT_DIR=${3:-vis_spatial_comparison_all}
 
 CUDA_VISIBLE_DEVICES=${GPU} python vis_spatial_heatmap.py \
     --model_path ${MODEL_PATH} \
     --base_model_path models/Qwen2.5-VL-7B-Instruct \
-    --test_json processed_data_with_depth_npy/test/sim5_sim6_merged_test_data_multi_view_follow.json \
+    --test_json ${TEST_JSON} \
     --video_mapping processed_data_with_depth_npy/processed_mapping.json \
-    --output_dir vis_spatial_comparison \
-    --num_spatial 10 \
+    --output_dir ${OUTPUT_DIR} \
+    --num_spatial 15 \
     --num_non_spatial 5 \
     --vis_method mean \
     --enable_3d True \

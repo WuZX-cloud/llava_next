@@ -25,6 +25,9 @@ from qwen_vl_utils import process_vision_info
 SPATIAL_TYPES = ["Object Grounding", "Object Matching", "Who to Collaborate"]
 NON_SPATIAL_TYPES = ["Scene Description", "Quality Assessment"]
 
+# 确保覆盖不同UAV数量的样本
+DATASET_PRIORITY = ["Real_2_UAVs", "Sim_3_UAVs", "Sim5_VQA_UAVs", "Sim6_VQA_UAVs"]
+
 
 def save_heatmap(gate_tensor, original_images, output_dir, sample_id, method='mean'):
     """保存热力图，不需要交互输入"""
@@ -88,16 +91,27 @@ def run_visualization(args):
     with open(args.video_mapping, 'r') as f:
         video_mapping = json.load(f)
 
-    # Filter samples by question type
-    spatial_samples = [x for x in test_data if x.get("question_type") in SPATIAL_TYPES]
-    non_spatial_samples = [x for x in test_data if x.get("question_type") in NON_SPATIAL_TYPES]
+    # Filter samples by question type, ensuring diversity across UAV counts
+    spatial_all = [x for x in test_data if x.get("question_type") in SPATIAL_TYPES]
+    non_spatial_all = [x for x in test_data if x.get("question_type") in NON_SPATIAL_TYPES]
 
-    print(f"Spatial reasoning samples: {len(spatial_samples)}")
-    print(f"Non-spatial samples: {len(non_spatial_samples)}")
+    print(f"Spatial reasoning samples (total): {len(spatial_all)}")
+    print(f"Non-spatial samples (total): {len(non_spatial_all)}")
 
-    # Limit samples
-    spatial_samples = spatial_samples[:args.num_spatial]
-    non_spatial_samples = non_spatial_samples[:args.num_non_spatial]
+    # Pick samples from each dataset to ensure UAV count diversity
+    def pick_diverse(samples, n):
+        picked = []
+        for ds in DATASET_PRIORITY:
+            ds_samples = [x for x in samples if x.get("dataset") == ds]
+            per_ds = max(1, n // len(DATASET_PRIORITY))
+            picked.extend(ds_samples[:per_ds])
+        # Fill remaining
+        remaining = [x for x in samples if x not in picked]
+        picked.extend(remaining[:max(0, n - len(picked))])
+        return picked[:n]
+
+    spatial_samples = pick_diverse(spatial_all, args.num_spatial)
+    non_spatial_samples = pick_diverse(non_spatial_all, args.num_non_spatial)
     all_samples = spatial_samples + non_spatial_samples
 
     print(f"\nWill visualize {len(spatial_samples)} spatial + {len(non_spatial_samples)} non-spatial = {len(all_samples)} total")
@@ -156,6 +170,8 @@ def run_visualization(args):
             continue
 
         video_data = video_mapping[video_id]
+        dataset_name = item.get("dataset", "unknown")
+        num_uavs = len(video_data.get('image_paths', []))
 
         # Get question and ground truth
         conversations = item['conversations']
@@ -173,7 +189,7 @@ def run_visualization(args):
         if not question:
             continue
 
-        print(f"\n[{idx+1}/{len(all_samples)}] {category.upper()} | Type: {q_type} | Video: {video_id}")
+        print(f"\n[{idx+1}/{len(all_samples)}] {category.upper()} | Type: {q_type} | UAVs: {num_uavs} | Dataset: {dataset_name} | Video: {video_id}")
 
         try:
             # Load images and compute 3D coords
@@ -278,6 +294,8 @@ def run_visualization(args):
                         "video_id": video_id,
                         "question_type": q_type,
                         "category": category,
+                        "dataset": dataset_name,
+                        "num_uavs": num_uavs,
                         "question_text": q_text,
                         "ground_truth": ground_truth,
                         "prediction": response,
